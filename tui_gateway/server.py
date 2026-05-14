@@ -1363,6 +1363,19 @@ def _probe_config_health(cfg: dict) -> str:
     return " ".join(warnings).strip()
 
 
+def _derive_agent_identity() -> str:
+    """Derive agent identity from HERMES_HOME path with pair-case capitalization.
+
+    E.g. 'bobo' -> 'BoBo', 'hoho' -> 'HoHo', 'jojo' -> 'JoJo'.
+    """
+    hermes_home = os.environ.get("HERMES_HOME", "")
+    if not hermes_home:
+        return ""
+    agent_dir = os.path.basename(hermes_home.rstrip("/"))
+    # Pair-case: uppercase every even-indexed character
+    return ''.join(c.upper() if i % 2 == 0 else c.lower() for i, c in enumerate(agent_dir))
+
+
 def _session_info(agent) -> dict:
     reasoning_config = getattr(agent, "reasoning_config", None)
     reasoning_effort = ""
@@ -1374,6 +1387,7 @@ def _session_info(agent) -> dict:
     service_tier = getattr(agent, "service_tier", None) or ""
     info: dict = {
         "model": getattr(agent, "model", ""),
+        "agent_identity": os.environ.get("HERMES_AGENT_IDENTITY") or _derive_agent_identity(),
         "reasoning_effort": reasoning_effort,
         "service_tier": service_tier,
         "fast": service_tier == "priority",

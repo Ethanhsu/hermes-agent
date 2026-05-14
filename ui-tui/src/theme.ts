@@ -291,10 +291,10 @@ export const DARK_THEME: Theme = {
     statusCritical: '#FF6B6B',
     selectionBg: '#3a3a55',
 
-    diffAdded: 'rgb(220,255,220)',
-    diffRemoved: 'rgb(255,220,220)',
-    diffAddedWord: 'rgb(36,138,61)',
-    diffRemovedWord: 'rgb(207,34,46)',
+    diffAdded: '#0d3b18',
+    diffRemoved: '#3b0d0d',
+    diffAddedWord: '#4ade80',
+    diffRemovedWord: '#f87171',
     shellDollar: '#4dabf7'
   },
 
@@ -336,10 +336,10 @@ export const LIGHT_THEME: Theme = {
     statusCritical: '#B71C1C',
     selectionBg: '#D4E4F7',
 
-    diffAdded: 'rgb(200,240,200)',
-    diffRemoved: 'rgb(240,200,200)',
-    diffAddedWord: 'rgb(27,94,32)',
-    diffRemovedWord: 'rgb(183,28,28)',
+    diffAdded: '#c8f0c8',
+    diffRemoved: '#f0c8c8',
+    diffAddedWord: '#1b5e20',
+    diffRemovedWord: '#b71c1c',
     shellDollar: '#1565C0'
   },
 

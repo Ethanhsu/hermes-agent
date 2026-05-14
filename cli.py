@@ -2848,9 +2848,20 @@ class HermesCLI:
             model_short = f"{model_short[:23]}..."
 
         elapsed_seconds = max(0.0, (datetime.now() - self.session_start).total_seconds())
+        # Derive agent identity from HERMES_HOME directory name
+        try:
+            from hermes_constants import get_hermes_home as _get_hh
+            _hh = _get_hh()
+            agent_identity = Path(_hh).name if _hh else None
+        except Exception:
+            agent_identity = None
+        if not agent_identity or agent_identity.lower() in ("hermes",):
+            agent_identity = None
+
         snapshot = {
             "model_name": model_name,
             "model_short": model_short,
+            "agent_identity": agent_identity,
             "duration": format_duration_compact(elapsed_seconds),
             "prompt_elapsed": self._format_prompt_elapsed(
                 getattr(self, "_prompt_start_time", None),
@@ -3125,12 +3136,16 @@ class HermesCLI:
                 percent_label = f"{percent}%" if percent is not None else "--"
                 if width < 76:
                     compressions = snapshot.get("compressions", 0)
+                    agent_identity = snapshot.get("agent_identity")
                     frags = [
                         ("class:status-bar", " ⚕ "),
-                        ("class:status-bar-strong", snapshot["model_short"]),
-                        ("class:status-bar-dim", " · "),
-                        (self._status_bar_context_style(percent), percent_label),
                     ]
+                    if agent_identity:
+                        frags.append(("class:status-bar-strong", agent_identity))
+                        frags.append(("class:status-bar-dim", " · "))
+                    frags.append(("class:status-bar-strong", snapshot["model_short"]))
+                    frags.append(("class:status-bar-dim", " · "))
+                    frags.append((self._status_bar_context_style(percent), percent_label))
                     if compressions:
                         frags.append(("class:status-bar-dim", " · "))
                         frags.append((self._compression_count_style(compressions), f"🗜️ {compressions}"))
@@ -3149,16 +3164,20 @@ class HermesCLI:
 
                     bar_style = self._status_bar_context_style(percent)
                     compressions = snapshot.get("compressions", 0)
+                    agent_identity = snapshot.get("agent_identity")
                     frags = [
                         ("class:status-bar", " ⚕ "),
-                        ("class:status-bar-strong", snapshot["model_short"]),
-                        ("class:status-bar-dim", " │ "),
-                        ("class:status-bar-dim", context_label),
-                        ("class:status-bar-dim", " │ "),
-                        (bar_style, self._build_context_bar(percent)),
-                        ("class:status-bar-dim", " "),
-                        (bar_style, percent_label),
                     ]
+                    if agent_identity:
+                        frags.append(("class:status-bar-strong", agent_identity))
+                        frags.append(("class:status-bar-dim", " │ "))
+                    frags.append(("class:status-bar-strong", snapshot["model_short"]))
+                    frags.append(("class:status-bar-dim", " │ "))
+                    frags.append(("class:status-bar-dim", context_label))
+                    frags.append(("class:status-bar-dim", " │ "))
+                    frags.append((bar_style, self._build_context_bar(percent)))
+                    frags.append(("class:status-bar-dim", " "))
+                    frags.append((bar_style, percent_label))
                     if compressions:
                         frags.append(("class:status-bar-dim", " │ "))
                         frags.append((self._compression_count_style(compressions), f"🗜️ {compressions}"))

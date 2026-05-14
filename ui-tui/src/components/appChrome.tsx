@@ -232,18 +232,8 @@ const effortLabel = (effort?: string) => {
   return value && value !== 'medium' && value !== 'normal' && value !== 'default' ? value : ''
 }
 
-const shortModelLabel = (model: string) =>
-  model
-    .split('/')
-    .pop()!
-    .replace(/^claude[-_]/, '')
-    .replace(/^anthropic[-_]/, '')
-    .replace(/[-_]/g, ' ')
-    .replace(/\b(\d+)\s+(\d+)\b/g, '$1.$2')
-    .trim()
-
 const modelLabel = (model: string, effort?: string, fast?: boolean) =>
-  [shortModelLabel(model), effortLabel(effort), fast ? 'fast' : ''].filter(Boolean).join(' ')
+  [model.split('/').pop() ?? model, effortLabel(effort), fast ? 'fast' : ''].filter(Boolean).join(' ')
 
 export function GoodVibesHeart({ tick, t }: { tick: number; t: Theme }) {
   const [active, setActive] = useState(false)
@@ -271,6 +261,7 @@ export function GoodVibesHeart({ tick, t }: { tick: number; t: Theme }) {
 }
 
 export function StatusRule({
+  agentIdentity,
   cwdLabel,
   cols,
   busy,
@@ -287,17 +278,22 @@ export function StatusRule({
   voiceLabel,
   t
 }: StatusRuleProps) {
-  const pct = usage.context_percent
-  const barColor = ctxBarColor(pct, t)
-
   const ctxLabel = usage.context_max
     ? `${fmtK(usage.context_used ?? 0)}/${fmtK(usage.context_max)}`
     : usage.total > 0
       ? `${fmtK(usage.total)} tok`
       : ''
 
-  const bar = usage.context_max ? ctxBar(pct) : ''
-  const leftWidth = Math.max(12, cols - cwdLabel.length - 3)
+  // Build simple label: model | agent | context
+  const modelShort = model.split('/').pop() ?? model
+  const parts: string[] = []
+  parts.push(modelShort)
+  if (agentIdentity) {
+    parts.push(agentIdentity)
+  }
+  if (ctxLabel) {
+    parts.push(ctxLabel)
+  }
 
   return (
     <Box height={1}>
@@ -356,7 +352,6 @@ export function StatusRule({
           ) : null}
         </Text>
       </Box>
-
       <Text color={t.color.border}> ─ </Text>
       <Text color={t.color.label}>{cwdLabel}</Text>
     </Box>
@@ -462,6 +457,7 @@ export function TranscriptScrollbar({ scrollRef, t }: TranscriptScrollbarProps) 
 }
 
 interface StatusRuleProps {
+  agentIdentity?: string
   bgCount: number
   busy: boolean
   cols: number
