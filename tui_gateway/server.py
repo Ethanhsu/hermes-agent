@@ -1295,6 +1295,7 @@ def _get_usage(agent) -> dict:
             usage["context_max"] = ctx_max
             usage["context_percent"] = max(0, min(100, round(ctx_used / ctx_max * 100)))
         usage["compressions"] = getattr(comp, "compression_count", 0) or 0
+        usage["output_tps"] = getattr(comp, "last_output_tps", 0) or 0
     try:
         from agent.usage_pricing import CanonicalUsage, estimate_usage_cost
 

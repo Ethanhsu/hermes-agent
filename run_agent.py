@@ -7543,6 +7543,9 @@ class AIAgent:
                         api_kwargs=api_kwargs,
                     )
                     result["response"] = request_client_holder["client"].chat.completions.create(**api_kwargs)
+                    # Attach duration for TPS fallback when provider doesn't
+                    # return timing fields (common with llama.cpp non-streaming)
+                    result["response"]._stream_duration = time.time() - _call_start
             except Exception as e:
                 result["error"] = e
             finally:
@@ -7969,6 +7972,9 @@ class AIAgent:
             # ``request_client_holder["diag"]`` for closure access.
             _diag = self._stream_diag_init()
             request_client_holder["diag"] = _diag
+            # Wall-clock timestamp for streaming duration (used for TPS calc
+            # when the provider does not return timing fields — e.g. llama.cpp).
+            _stream_start_time = time.time()
             stream = request_client_holder["client"].chat.completions.create(**stream_kwargs)
 
             # Capture rate limit headers from the initial HTTP response.
@@ -8177,6 +8183,8 @@ class AIAgent:
                         ),
                     ))
 
+            # Calculate streaming duration for TPS fallback
+            _stream_duration = time.time() - _stream_start_time
             effective_finish_reason = finish_reason or "stop"
             if has_truncated_tool_args:
                 effective_finish_reason = "length"
@@ -8198,6 +8206,7 @@ class AIAgent:
                 model=model_name,
                 choices=[mock_choice],
                 usage=usage_obj,
+                _stream_duration=_stream_duration,
             )
 
         def _call_anthropic():
@@ -13166,10 +13175,21 @@ class AIAgent:
                         prompt_tokens = canonical_usage.prompt_tokens
                         completion_tokens = canonical_usage.output_tokens
                         total_tokens = canonical_usage.total_tokens
+                        # Extract timing from raw usage if available (llama.cpp)
+                        output_tps = 0
+                        if hasattr(response.usage, "completion_tokens_per_second"):
+                            output_tps = response.usage.completion_tokens_per_second or 0
+                        elif hasattr(response.usage, "output_tokens_per_second"):
+                            output_tps = response.usage.output_tokens_per_second or 0
+                        # Fallback: calculate from streaming duration if provider
+                        # didn't provide timing fields (common with llama.cpp)
+                        if output_tps == 0 and getattr(response, "_stream_duration", 0) > 0:
+                            output_tps = round(completion_tokens / response._stream_duration, 1)
                         usage_dict = {
                             "prompt_tokens": prompt_tokens,
                             "completion_tokens": completion_tokens,
                             "total_tokens": total_tokens,
+                            "completion_tokens_per_second": output_tps,
                         }
                         self.context_compressor.update_from_response(usage_dict)
 
@@ -15587,6 +15607,7 @@ class AIAgent:
             "completion_tokens": self.session_completion_tokens,
             "total_tokens": self.session_total_tokens,
             "last_prompt_tokens": getattr(self.context_compressor, "last_prompt_tokens", 0) or 0,
+            "last_output_tps": getattr(self.context_compressor, "last_output_tps", 0) or 0,
             "estimated_cost_usd": self.session_estimated_cost_usd,
             "cost_status": self.session_cost_status,
             "cost_source": self.session_cost_source,

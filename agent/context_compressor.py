@@ -463,6 +463,7 @@ class ContextCompressor(ContextEngine):
 
         self.last_prompt_tokens = 0
         self.last_completion_tokens = 0
+        self.last_output_tps = 0
 
         self.summary_model = summary_model_override or ""
 
@@ -489,6 +490,13 @@ class ContextCompressor(ContextEngine):
         """Update tracked token usage from API response."""
         self.last_prompt_tokens = usage.get("prompt_tokens", 0)
         self.last_completion_tokens = usage.get("completion_tokens", 0)
+        # Capture timing from llama.cpp OpenAI-compatible API usage fields.
+        # llmama.cpp returns prompt_tokens_per_second and
+        # completion_tokens_per_second in the usage object.
+        self.last_output_tps = usage.get("completion_tokens_per_second", 0)
+        if not self.last_output_tps:
+            # Fallback: some providers use different field names
+            self.last_output_tps = usage.get("output_tokens_per_second", 0)
 
     def should_compress(self, prompt_tokens: int = None) -> bool:
         """Check if context exceeds the compression threshold.

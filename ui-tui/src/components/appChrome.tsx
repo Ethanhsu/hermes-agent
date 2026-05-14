@@ -323,6 +323,14 @@ export function StatusRule({
               <SessionDuration startedAt={sessionStartedAt} />
             </Text>
           ) : null}
+          {typeof usage.output_tps === 'number' && usage.output_tps > 0 ? (
+            <Text color={t.color.muted}>
+              {' │ '}
+              <Text color={usage.output_tps >= 30 ? t.color.statusGood : usage.output_tps >= 10 ? t.color.statusWarn : t.color.statusBad}>
+                {usage.output_tps >= 1000 ? `${(usage.output_tps / 1000).toFixed(1)}k t/s` : `${Math.round(usage.output_tps)} t/s`}
+              </Text>
+            </Text>
+          ) : null}
           {typeof usage.compressions === 'number' && usage.compressions > 0 ? (
             <Text color={t.color.muted}>
               {' │ '}

@@ -168,6 +168,7 @@ export interface Usage {
   cost_usd?: number
   input: number
   output: number
+  output_tps?: number
   reasoning?: number
   total: number
 }
