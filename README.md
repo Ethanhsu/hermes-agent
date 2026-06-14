@@ -188,6 +188,23 @@ scripts/run_tests.sh
 
 ---
 
+## Local Features (Ethanhsu fork)
+
+This fork adds production-hardening for NVIDIA NIM and local LLM providers:
+
+- NVIDIA NIM Guard Suite — Rate limiter (28 RPM, burst=5, max 2 concurrent),
+  circuit breaker (3 consecutive 429s -> 60s cooldown -> probe recovery),
+  FIFO request queue, and Prometheus-style metrics. All injected into the
+  `run_agent.py` retry loop so NIM endpoints are protected automatically.
+- TPS Streaming Fallback — Graceful fallback for local providers
+  (llama.cpp) when streaming is unavailable.
+- TUI Gateway — Persistent gateway server for TUI chat pane.
+
+See `agent/nim_guard.py` for the guard entry point and
+`agents/hoho/config.yaml` for configuration.
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
