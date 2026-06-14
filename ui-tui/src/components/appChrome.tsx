@@ -123,33 +123,6 @@ function FaceTicker({ color, startedAt }: { color: string; startedAt?: null | nu
   )
 }
 
-function ctxBarColor(pct: number | undefined, t: Theme) {
-  if (pct == null) {
-    return t.color.muted
-  }
-
-  if (pct >= 95) {
-    return t.color.statusCritical
-  }
-
-  if (pct > 80) {
-    return t.color.statusBad
-  }
-
-  if (pct >= 50) {
-    return t.color.statusWarn
-  }
-
-  return t.color.statusGood
-}
-
-function ctxBar(pct: number | undefined, w = 10) {
-  const p = Math.max(0, Math.min(100, pct ?? 0))
-  const filled = Math.round((p / 100) * w)
-
-  return '█'.repeat(filled) + '░'.repeat(w - filled)
-}
-
 function SpawnHud({ t }: { t: Theme }) {
   // Tight HUD that only appears when the session is actually fanning out.
   // Colour escalates to warn/error as depth or concurrency approaches the cap.
@@ -284,20 +257,9 @@ export function StatusRule({
       ? `${fmtK(usage.total)} tok`
       : ''
 
-  // Build simple label: model | agent | context
-  const modelShort = model.split('/').pop() ?? model
-  const parts: string[] = []
-  parts.push(modelShort)
-  if (agentIdentity) {
-    parts.push(agentIdentity)
-  }
-  if (ctxLabel) {
-    parts.push(ctxLabel)
-  }
-
   return (
     <Box height={1}>
-      <Box flexShrink={1} width={leftWidth}>
+      <Box flexShrink={1}>
         <Text color={t.color.border} wrap="truncate-end">
           {'─ '}
           {busy ? (
@@ -307,12 +269,6 @@ export function StatusRule({
           )}
           <Text color={t.color.muted}> │ {modelLabel(model, modelReasoningEffort, modelFast)}</Text>
           {ctxLabel ? <Text color={t.color.muted}> │ {ctxLabel}</Text> : null}
-          {bar ? (
-            <Text color={t.color.muted}>
-              {' │ '}
-              <Text color={barColor}>[{bar}]</Text> <Text color={barColor}>{pct != null ? `${pct}%` : ''}</Text>
-            </Text>
-          ) : null}
           {sessionStartedAt ? (
             <Text color={t.color.muted}>
               {' │ '}

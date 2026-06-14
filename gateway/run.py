@@ -6500,6 +6500,9 @@ class GatewayRunner:
         if canonical == "sethome":
             return await self._handle_set_home_command(event)
 
+        if canonical == "wherewerewe":
+            return await self._handle_wherewerewe_command(event)
+
         if canonical == "compress":
             return await self._handle_compress_command(event)
 
@@ -9777,6 +9780,65 @@ class GatewayRunner:
             )
 
         return t("gateway.set_home.success", name=chat_name, chat_id=chat_id)
+
+    async def _handle_wherewerewe_command(self, event: MessageEvent) -> str:
+        """Handle /wherewerewe command -- resume from where the conversation left off.
+
+        Finds the most recent CLI/TUI session (non-telegram) for this agent and
+        shows the last few user messages to help the user pick up where they left off.
+        """
+        if not self._session_db:
+            from hermes_state import format_session_db_unavailable
+            return format_session_db_unavailable(prefix="")
+
+        # Find most recent non-telegram session for this agent
+        try:
+            all_sessions = self._session_db.search_sessions(limit=20)
+        except Exception:
+            return "Could not access session history."
+
+        # Filter to non-telegram sessions, sorted by last_updated desc
+        non_tg = []
+        for s in all_sessions:
+            src = s.get("source", "")
+            sid = s.get("id", "")
+            # Skip telegram DMs and threads
+            if "telegram" in src:
+                continue
+            # Skip very short sessions
+            if not s.get("title") and not s.get("message_count", 0) > 2:
+                continue
+            non_tg.append(s)
+
+        if not non_tg:
+            return "No recent CLI/TUI session found."
+
+        # Pick the most recent
+        last = non_tg[0]
+        session_id = last["id"]
+
+        messages = self._session_db.get_messages(session_id)
+        if not messages:
+            return f"Session `{last.get('title') or session_id}` has no messages."
+
+        # Get last 6 user messages
+        user_msgs = [m for m in messages if m.get("role") == "user"][-6:]
+
+        if not user_msgs:
+            return f"Session `{last.get('title') or session_id}` has no user messages."
+
+        title = last.get("title") or session_id
+        lines = [f"=== Last CLI session: {title} ===\n"]
+        for m in user_msgs:
+            content = m.get("content", "")
+            if isinstance(content, list):
+                content = " ".join([c.get("text", "") for c in content if c.get("type") == "text"])
+            if len(content) > 150:
+                content = content[:150] + "..."
+            if content.strip():
+                lines.append(f"  • {content.strip()}")
+
+        return "\n".join(lines)
 
     @staticmethod
     def _get_guild_id(event: MessageEvent) -> Optional[int]:

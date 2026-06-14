@@ -12633,6 +12633,66 @@ class AIAgent:
                     except Exception:
                         pass  # Never let rate guard break the agent loop
 
+                # ── NVIDIA NIM rate limit guard ──────────────────────
+                # For NIM endpoints, check circuit breaker + rate limiter
+                # before every API call. Prevents self-DDoS and retry
+                # storms. Falls back gracefully if guard modules are
+                # unavailable.
+                _is_nvidia_nim_endpoint = (
+                    "integrate.api.nvidia.com" in (self.base_url or "").lower()
+                )
+                if _is_nvidia_nim_endpoint:
+                    try:
+                        from agent.nim_guard import get_nim_guard
+                        _nim_guard = get_nim_guard()
+                        _nim_allowed, _nim_reason = _nim_guard.allow_request()
+                        if not _nim_allowed:
+                            if "circuit_breaker" in _nim_reason:
+                                _nim_msg = (
+                                    f"NVIDIA NIM circuit breaker OPEN — "
+                                    f"reason: {_nim_reason}"
+                                )
+                                _nim_cb_state = _nim_guard.circuit_breaker.state.value
+                                if _nim_cb_state == "open":
+                                    self._vprint(
+                                        f"{self.log_prefix}🔴 {_nim_msg}",
+                                        force=True,
+                                    )
+                                    self._emit_status(f"🔴 {_nim_msg}")
+                                    _nim_guard.circuit_breaker.wait_for_probe(
+                                        timeout=65.0
+                                    )
+                                    continue
+                                elif _nim_cb_state == "half_open":
+                                    self._vprint(
+                                        f"{self.log_prefix}🟡 NIM circuit breaker "
+                                        f"HALF_OPEN — probe in progress",
+                                        force=True,
+                                    )
+                                    time.sleep(2.0)
+                                    continue
+                            elif "rate_limited" in _nim_reason:
+                                try:
+                                    _wait = float(
+                                        _nim_reason.split("wait_")[1].rstrip("s")
+                                    )
+                                except (IndexError, ValueError):
+                                    _wait = 2.0
+                                self._vprint(
+                                    f"{self.log_prefix}⏳ NIM rate limiter: "
+                                    f"waiting {_wait:.1f}s",
+                                    force=True,
+                                )
+                                time.sleep(min(_wait, 5.0))
+                                continue
+                            else:
+                                time.sleep(1.0)
+                                continue
+                    except ImportError:
+                        pass
+                    except Exception:
+                        pass  # Never let NIM guard break the agent loop
+
                 try:
                     self._reset_stream_delivery_tracking()
                     api_kwargs = self._build_api_kwargs(api_messages)
@@ -12685,6 +12745,12 @@ class AIAgent:
                             self.thinking_callback("")
 
                     _use_streaming = True
+                    # NIM guard: record request about to be sent
+                    if _is_nvidia_nim_endpoint:
+                        try:
+                            _nim_guard.before_request()
+                        except Exception:
+                            pass
                     # Provider signaled "stream not supported" on a previous
                     # attempt — switch to non-streaming for the rest of this
                     # session instead of re-failing every retry.
@@ -12716,7 +12782,14 @@ class AIAgent:
                         response = self._interruptible_api_call(api_kwargs)
                     
                     api_duration = time.time() - api_start_time
-                    
+
+                    # NIM guard: release concurrency slot after API call
+                    if _is_nvidia_nim_endpoint:
+                        try:
+                            _nim_guard.release()
+                        except Exception:
+                            pass
+
                     # Stop thinking spinner silently -- the response box or tool
                     # execution messages that follow are more informative.
                     if thinking_spinner:
@@ -13314,6 +13387,14 @@ class AIAgent:
                         try:
                             from agent.nous_rate_guard import clear_nous_rate_limit
                             clear_nous_rate_limit()
+                        except Exception:
+                            pass
+                    # ── NIM guard: record success ──────────────────────
+                    if _is_nvidia_nim_endpoint:
+                        try:
+                            _nim_guard.after_success(
+                                latency_ms=(time.time() - api_start_time) * 1000
+                            )
                         except Exception:
                             pass
                     self._touch_activity(f"API call #{api_call_count} completed")
@@ -14443,6 +14524,25 @@ class AIAgent:
                                     _retry_after = min(float(_ra_raw), 120)  # Cap at 2 minutes
                                 except (TypeError, ValueError):
                                     pass
+
+                    # ── NIM guard: record 429/failure ──────────────────
+                    if _is_nvidia_nim_endpoint:
+                        try:
+                            _nim_g = get_nim_guard()
+                            if status_code == 429 and is_rate_limited:
+                                _nim_g.after_429(retry_after=_retry_after)
+                            else:
+                                _nim_g.after_failure(status_code=status_code)
+                        except Exception:
+                            pass
+
+                    # NIM guard: record retry attempt
+                    if _is_nvidia_nim_endpoint:
+                        try:
+                            _nim_g.after_retry()
+                        except Exception:
+                            pass
+
                     wait_time = _retry_after if _retry_after else jittered_backoff(retry_count, base_delay=2.0, max_delay=60.0)
                     if is_rate_limited:
                         self._emit_status(f"⏱️ Rate limited. Waiting {wait_time:.1f}s (attempt {retry_count + 1}/{max_retries})...")

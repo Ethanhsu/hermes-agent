@@ -111,6 +111,8 @@ COMMAND_REGISTRY: list[CommandDef] = [
     CommandDef("profile", "Show active profile name and home directory", "Info"),
     CommandDef("sethome", "Set this chat as the home channel", "Session",
                gateway_only=True, aliases=("set-home",)),
+    CommandDef("wherewerewe", "Resume from where the conversation left off", "Session",
+               gateway_only=True),
     CommandDef("resume", "Resume a previously-named session", "Session",
                args_hint="[name]"),
 
@@ -211,6 +213,9 @@ COMMAND_REGISTRY: list[CommandDef] = [
     # Exit
     CommandDef("quit", "Exit the CLI", "Exit",
                cli_only=True, aliases=("exit",)),
+
+    # GitHub
+    CommandDef("repo", "List your GitHub repositories", "Tools & Skills"),
 ]
 
 

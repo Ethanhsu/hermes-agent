@@ -7674,6 +7674,16 @@ class HermesCLI:
             self._handle_voice_command(cmd_original)
         elif canonical == "busy":
             self._handle_busy_command(cmd_original)
+        elif canonical == "repo":
+            import subprocess
+            result = subprocess.run(
+                ["/usr/local/bin/repo"],
+                capture_output=True, text=True, timeout=30
+            )
+            if result.stdout.strip():
+                print(result.stdout.strip())
+            if result.stderr.strip():
+                print(f"Error: {result.stderr.strip()}")
         else:
             # Check for user-defined quick commands (bypass agent loop, no LLM call)
             base_cmd = cmd_lower.split()[0]
